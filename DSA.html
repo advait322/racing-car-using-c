@@ -1,0 +1,220 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DSA Car Racing Game</title>
+<style>
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: #10131a; color: white;
+  font-family: Arial, sans-serif; text-align: center;
+}
+h1 { color: #ff8c00; margin: 18px 0 5px; }
+p { color: #cbd5e1; }
+.game {
+  position: relative; width: 320px; height: 480px;
+  margin: 18px auto; overflow: hidden;
+  background: #343a40; border: 5px solid #737b85;
+  border-radius: 12px;
+}
+.road-line {
+  position: absolute; top: -100px; bottom: -100px;
+  width: 5px; background: repeating-linear-gradient(
+    to bottom, white 0 35px, transparent 35px 65px
+  );
+  animation: road 0.7s linear infinite;
+}
+.line1 { left: 33%; }
+.line2 { left: 66%; }
+@keyframes road {
+  from { transform: translateY(0); }
+  to { transform: translateY(65px); }
+}
+.car {
+  position: absolute; width: 48px; height: 76px;
+  border-radius: 12px 12px 7px 7px;
+  border: 3px solid #111;
+  box-shadow: inset 0 12px #ffffff30;
+}
+.player {
+  background: #00b7ff;
+  bottom: 18px; left: 136px;
+}
+.enemy {
+  background: #ff3939;
+}
+.car::before {
+  content: ""; position: absolute; width: 25px;
+  height: 23px; left: 8px; top: 13px;
+  border-radius: 5px; background: #a8eaff;
+  border: 2px solid #18222c;
+}
+.car::after {
+  content: ""; position: absolute; bottom: 7px;
+  left: 8px; width: 25px; height: 9px;
+  background: #222; border-radius: 3px;
+}
+.hud {
+  display: flex; justify-content: space-around;
+  padding: 12px; background: #202630; font-weight: bold;
+}
+button {
+  padding: 12px 20px; margin: 5px;
+  background: #ff8c00; color: #111;
+  font-weight: bold; border: 0; border-radius: 8px;
+  cursor: pointer;
+}
+button:hover { background: #ffb347; }
+#message { color: #ffb347; font-weight: bold; }
+.controls { color: #ddd; font-size: 14px; }
+</style>
+</head>
+<body>
+<h1>🏎 CAR RACING</h1>
+<p>DSA Mini Project | Dodge the enemy cars!</p>
+
+<div class="hud">
+  <span>Score: <span id="score">0</span></span>
+  <span>Best: <span id="best">0</span></span>
+</div>
+
+<div class="game" id="game">
+  <div class="road-line line1"></div>
+  <div class="road-line line2"></div>
+  <div class="car player" id="player"></div>
+</div>
+
+<div id="message">Press START to race!</div>
+<button onclick="startGame()">START / RESTART</button>
+<div class="controls">
+  Keyboard: ← → or A / D<br>
+  Mobile: use the buttons below
+</div>
+<div>
+  <button onclick="move(-1)">⬅ LEFT</button>
+  <button onclick="move(1)">RIGHT ➡</button>
+</div>
+
+<script>
+const game = document.getElementById("game");
+const player = document.getElementById("player");
+const scoreText = document.getElementById("score");
+const bestText = document.getElementById("best");
+const message = document.getElementById("message");
+
+const lanes = [30, 132, 234];
+let lane = 1;
+let enemies = []; // DSA: Array stores enemy cars
+let score = 0;
+let speed = 3;
+let running = false;
+let timer, spawner, animation;
+let lastTime = 0;
+let spawnClock = 0;
+
+let best = Number(localStorage.getItem("carBest") || 0);
+bestText.textContent = best;
+
+function move(direction) {
+  if (!running) return;
+  lane = Math.max(0, Math.min(2, lane + direction));
+  player.style.left = lanes[lane] + "px";
+}
+
+document.addEventListener("keydown", function(e) {
+  if (["ArrowLeft", "ArrowRight", " "].includes(e.key))
+    e.preventDefault();
+  if (e.key === "ArrowLeft" || e.key.toLowerCase() === "a")
+    move(-1);
+  if (e.key === "ArrowRight" || e.key.toLowerCase() === "d")
+    move(1);
+  if (e.key === " " && !running) startGame();
+});
+
+function startGame() {
+  clearInterval(timer);
+  cancelAnimationFrame(animation);
+  clearInterval(spawner);
+
+  enemies.forEach(enemy => enemy.el.remove());
+  enemies = [];
+  lane = 1;
+  score = 0;
+  speed = 3;
+  spawnClock = 0;
+  lastTime = 0;
+  running = true;
+
+  player.style.left = lanes[lane] + "px";
+  scoreText.textContent = score;
+  message.textContent = "Race started! Avoid red cars!";
+  animation = requestAnimationFrame(update);
+}
+
+function spawnEnemy() {
+  if (!running) return;
+
+  // DSA: Array of objects stores each enemy's lane and position.
+  const laneIndex = Math.floor(Math.random() * 3);
+  const el = document.createElement("div");
+  el.className = "car enemy";
+  el.style.left = lanes[laneIndex] + "px";
+  el.style.top = "-85px";
+  game.appendChild(el);
+
+  enemies.push({ el: el, lane: laneIndex, y: -85 });
+}
+
+function update(timestamp) {
+  if (!running) return;
+  if (!lastTime) lastTime = timestamp;
+  const dt = Math.min((timestamp - lastTime) / 16.67, 3);
+  lastTime = timestamp;
+  spawnClock += dt;
+
+  if (spawnClock > Math.max(24, 65 - score * 0.3)) {
+    spawnEnemy();
+    spawnClock = 0;
+  }
+
+  // DSA: Traverse array to update cars and detect collisions.
+  for (let i = enemies.length - 1; i >= 0; i--) {
+    const enemy = enemies[i];
+    enemy.y += speed * dt;
+    enemy.el.style.top = enemy.y + "px";
+
+    // Collision detection: compare lane and vertical position.
+    if (enemy.lane === lane && enemy.y > 370 && enemy.y < 455) {
+      endGame();
+      return;
+    }
+
+    if (enemy.y > 490) {
+      enemy.el.remove();
+      enemies.splice(i, 1);
+      score += 10;
+      scoreText.textContent = score;
+      speed = Math.min(8, 3 + score / 250);
+    }
+  }
+
+  animation = requestAnimationFrame(update);
+}
+
+function endGame() {
+  running = false;
+  cancelAnimationFrame(animation);
+
+  if (score > best) {
+    best = score;
+    localStorage.setItem("carBest", best);
+    bestText.textContent = best;
+  }
+  message.textContent = "💥 GAME OVER! Final Score: " + score;
+}
+
+</script>
+</body>
+</html>
